@@ -1,0 +1,75 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+model CategoryRule {
+  id                   String   @id @default(cuid())
+
+  category             String   @unique
+
+  autoReplyEnabled     Boolean  @default(false)
+
+  replyTone            String
+  replyStyle           String?
+
+  allowedDomains       String[]
+
+  blockedDomains       String[]
+
+  createdAt            DateTime @default(now())
+}
+
+model Email {
+  id               String      @id @default(cuid())
+
+  gmailMessageId   String      @unique
+  threadId         String
+
+  sender           String
+  subject          String
+  body             String
+
+  category         String?
+  status           String      @default("RECEIVED")
+
+  receivedAt       DateTime
+  createdAt        DateTime    @default(now())
+
+  drafts           AiDraft[]
+  logs             Log[]
+}
+
+model AiDraft {
+  id               String      @id @default(cuid())
+
+  emailId          String
+  draftContent     String
+
+  tone             String?
+  model            String
+
+  status           String      @default("DRAFT")
+
+  createdAt        DateTime    @default(now())
+
+  email            Email       @relation(fields: [emailId], references: [id])
+}
+
+model Log {
+  id               String      @id @default(cuid())
+
+  emailId          String?
+
+  step             String
+  message          String
+
+  metadata         Json?
+
+  createdAt        DateTime    @default(now())
+
+  email            Email?      @relation(fields: [emailId], references: [id])
+}

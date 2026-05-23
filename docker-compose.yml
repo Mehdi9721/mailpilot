@@ -1,0 +1,108 @@
+version: '3.8'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: mailpilot-postgres
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-ai_mail_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "${DB_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - mailpilot-network
+
+  # Ollama Service (Qwen2.5)
+  ollama:
+    image: ollama/ollama:latest
+    container_name: mailpilot-ollama
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    volumes:
+      - ollama_data:/root/.ollama
+    ports:
+      - "${OLLAMA_PORT:-11434}:11434"
+    restart: unless-stopped
+    networks:
+      - mailpilot-network
+    # Note: Pull the model during container startup
+    # Run: docker exec mailpilot-ollama ollama pull qwen2.5:latest
+
+  # Backend Service
+  backend:
+    build:
+      context: ./apps/backend
+      dockerfile: Dockerfile
+    container_name: mailpilot-backend
+    environment:
+      # Database
+      DATABASE_URL: postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@postgres:5432/${DB_NAME:-ai_mail_db}
+      
+      # Server
+      PORT: ${BACKEND_PORT:-3001}
+      NODE_ENV: ${NODE_ENV:-production}
+      
+      # Google OAuth
+      GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID}
+      GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET}
+      GOOGLE_ACCESS_TOKEN: ${GOOGLE_ACCESS_TOKEN}
+      GOOGLE_REFRESH_TOKEN: ${GOOGLE_REFRESH_TOKEN}
+      
+      # Mail Configuration
+      MAIL_USER: ${MAIL_USER}
+      MAIL_APP_PASSWORD: ${MAIL_APP_PASSWORD}
+      
+      # OpenRouter
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      OPENROUTER_MODEL_PRIMARY: ${OPENROUTER_MODEL_PRIMARY:-deepseek/deepseek-chat-v3-0324}
+      OPENROUTER_MODEL_SECONDARY: ${OPENROUTER_MODEL_SECONDARY:-qwen/qwen3-32b}
+      
+      # Ollama
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:latest}
+      OLLAMA_BASE_URL: http://ollama:11434
+    ports:
+      - "${BACKEND_PORT:-3001}:3001"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - mailpilot-network
+    # Optional: Uncomment to run database migrations on startup
+    # command: sh -c "npx prisma migrate deploy && node dist/server.js"
+
+  # Frontend Service (Dashboard)
+  frontend:
+    build:
+      context: ./apps/dashboard
+      dockerfile: Dockerfile
+    container_name: mailpilot-frontend
+    ports:
+      - "${FRONTEND_PORT:-80}:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - mailpilot-network
+
+networks:
+  mailpilot-network:
+    driver: bridge
+
+volumes:
+  postgres_data:
+    driver: local
+  ollama_data:
+    driver: local
