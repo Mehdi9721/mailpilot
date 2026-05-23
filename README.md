@@ -112,12 +112,10 @@ Please open issues or pull requests. When contributing:
 
 ## Screenshots
 
-```markdown
 ![Dashboard Category view](docs/screenshots/category.png)
 ![Dashboard Log view](docs/screenshots/systemLog.png)
 ![Mail reply](docs/screenshots/mailreply.png)
 ![Mail chain reply](docs/screenshots/mailchainreply.png)
-```
 
 ## Useful file references
 
